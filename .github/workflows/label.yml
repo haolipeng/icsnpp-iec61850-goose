@@ -24,7 +24,7 @@ jobs:
           repository: DINA-community/.github
           path: org-github
       
-      - name: Run Labeler
+      - name: Get repo labels
         uses: crazy-max/ghaction-github-labeler@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

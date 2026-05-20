@@ -1,0 +1,20 @@
+name: zeek
+description: Testing zeek build with lts version
+
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  check_build_status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+         fetch-depth: 0
+      - uses: zeek/action-zkg-install@v2
+        with:
+          zeek_version: zeek-lts
