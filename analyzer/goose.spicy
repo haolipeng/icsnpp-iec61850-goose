@@ -5,6 +5,44 @@ import spicy;
 import zeek;
 import ASN1;
 
+	# Render one protocol byte without passing through character encoding.
+function byte(value: uint64): bytes {
+	return pack(cast<uint8>(value), spicy::ByteOrder::Big);
+}
+
+	# BER identifier octet for low-tag-number form:
+	# bits 8-7 are class, bit 6 is constructed, bits 5-1 are the tag number.
+function asn1_tag(class_id: uint64, constructed: bool, tag_number: uint64): bytes {
+	local constructed_bit = 0;
+	if ( constructed )
+		constructed_bit = 0x20;
+
+	return byte((class_id << 6) | constructed_bit | tag_number);
+}
+
+	# GOOSE PDU fields are context-specific. allData is tag [11] and is
+	# constructed because it is defined as SEQUENCE OF Data.
+function context_specific_constructed_tag(tag_number: uint64): bytes {
+	return asn1_tag(2, True, tag_number);
+}
+
+	# Rebuild the BER definite-length octets for the captured value bytes.
+function ber_length(length: uint64): bytes {
+	if ( length < 128 )
+		return byte(length);
+
+	if ( length <= 0xff )
+		return byte(0x81) + byte(length);
+
+	if ( length <= 0xffff )
+		return byte(0x82) + byte(length >> 8) + byte(length & 0xff);
+
+	if ( length <= 0xffffff )
+		return byte(0x83) + byte(length >> 16) + byte((length >> 8) & 0xff) + byte(length & 0xff);
+
+	return byte(0x84) + byte(length >> 24) + byte((length >> 16) & 0xff) + byte((length >> 8) & 0xff) + byte(length & 0xff);
+}
+
 public type Message = unit {
 
 	appid: uint16;
@@ -47,6 +85,8 @@ public type Message = unit {
 	var confRev: uint64;
 	var ndsCom: bool;
 	var numDatSetEntries: uint64;
+	var allDataTlv: bytes;
+	var allDataRawHex: string;
 
 	goosePDUdata: ASN1::ASN1Message(True)[] &parse-from=self.goosePDU.front().application_data;
 
@@ -85,9 +125,9 @@ public type Message = unit {
 				case 9: {self.ndsCom = element.application_data.to_uint(spicy::ByteOrder::Big) != 0; }
 				case 10: {self.numDatSetEntries = element.application_data.to_uint(spicy::ByteOrder::Big); }
 				case 11: {
-					# Decoding of allData
-					# in case data from allData is needed or you want to log specific data elements
-					# add here further decoding of all Data
+					# The AllData digest covers the complete TLV: tag, length, and value.
+					self.allDataTlv = context_specific_constructed_tag(cast<uint64>(tag)) + ber_length(|element.application_data|) + element.application_data;
+					self.allDataRawHex = spicy::bytes_to_hexstring(self.allDataTlv);
 					}
 				default: {print "error in tlv decoding, tag not implemented:"; print tag;}
 			}
@@ -106,5 +146,7 @@ public type Message = unit {
 		self.goID = "";
 		self.simulation = False;
 		self.ndsCom = False;
+		self.allDataTlv = b"";
+		self.allDataRawHex = "";
 	}
 };

@@ -4,6 +4,8 @@ export {
     # Create an ID for our new stream. By convention, this is called "LOG".
     redef enum Log::ID += { LOG };
 
+    const log_all_data_raw_hex = F &redef;
+
     # IECGoosePdu ::= SEQUENCE {
 	# 	gocbRef 			[0] IMPLICIT 	VISIBLE-STRING,
 	#	timeAllowedtoLive 		[1] IMPLICIT 	INTEGER,
@@ -39,6 +41,8 @@ export {
         conf_rev: int                   &log;
         nds_com: bool                   &log;
         num_dat_set_entries: int        &log;
+        all_data_hash: string           &log;
+        all_data_raw_hex: string        &log;
     };
 }
 
@@ -64,12 +68,16 @@ event zeek_init() &priority=20
 }
 
 # event defined in goose.evt.
-event goose::goose_packet(pkt: raw_pkt_hdr, appid: int, length: int, gocbRef: string, timeAllowedtoLive:int, dataSet: string, goID: string, secondSinceEpoch: count, fractionOfSecond: count, timeQuality: count, stNum: int, sqNum: int, simulation: bool, confRev: int, ndsCom: bool, numDatSetEntries: int)
+event goose::goose_packet(pkt: raw_pkt_hdr, appid: int, length: int, gocbRef: string, timeAllowedtoLive:int, dataSet: string, goID: string, secondSinceEpoch: count, fractionOfSecond: count, timeQuality: count, stNum: int, sqNum: int, simulation: bool, confRev: int, ndsCom: bool, numDatSetEntries: int, allDataRawHex: string)
 {
 #    print "Detected a goose packet.";
 
     local goose_timestamp = double_to_time(count_to_double(secondSinceEpoch) + count_to_double(fractionOfSecond) / 16777216.0);
-    local rec: goose::Info = [$ts=network_time(), $eth_type="0x88b8", $appid=fmt("0x%x", appid), $length=length, $gocb_ref=gocbRef, $time_allowed_to_live=timeAllowedtoLive, $dataset=dataSet, $timestamp=goose_timestamp, $timestamp_quality=fmt("0x%x", timeQuality), $st_num=stNum, $sq_num=sqNum, $simulation=simulation, $conf_rev=confRev, $nds_com=ndsCom, $num_dat_set_entries=numDatSetEntries];
+    local raw_hex = "";
+    if ( log_all_data_raw_hex )
+        raw_hex = allDataRawHex;
+
+    local rec: goose::Info = [$ts=network_time(), $eth_type="0x88b8", $appid=fmt("0x%x", appid), $length=length, $gocb_ref=gocbRef, $time_allowed_to_live=timeAllowedtoLive, $dataset=dataSet, $timestamp=goose_timestamp, $timestamp_quality=fmt("0x%x", timeQuality), $st_num=stNum, $sq_num=sqNum, $simulation=simulation, $conf_rev=confRev, $nds_com=ndsCom, $num_dat_set_entries=numDatSetEntries, $all_data_hash=sha256_hash(hexstr_to_bytestring(allDataRawHex)), $all_data_raw_hex=raw_hex];
 
     if ( goID != "" ) rec$go_id = goID;
 

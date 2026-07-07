@@ -21,4 +21,16 @@ zkg install .
 zeek -Cr testing/Traces/GOOSE.pcap icsnpp-iec61850-goose
 ```
 
+注意：`zkg install .` 会拒绝 dirty git worktree。工作区存在未提交改动时，不要为了验证 zkg 路径而强行清理或回滚用户改动；除非用户明确要求，否则先继续使用 CMake build/install 路径验证。
+
 简要规则：日常 TDD 和调试使用 CMake build/install；交付、发布或验证可安装包路径时再使用 zkg。
+
+## GOOSE / ASN.1 原始字节处理
+
+处理协议原始字节时，不要通过字符串编码/解码路径构造或传递二进制内容。Spicy 中需要生成单个协议字节时，优先使用：
+
+```spicy
+pack(cast<uint8>(value), spicy::ByteOrder::Big)
+```
+
+ASN.1 / BER tag 不要因为测试 pcap 中出现了某个字节就直接硬编码为魔法值。应按 BER identifier octet 规则由 class、constructed bit 和 tag number 组合生成，或在代码注释中明确该字节来自协议规则。
