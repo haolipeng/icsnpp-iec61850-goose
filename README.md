@@ -44,7 +44,8 @@ The following data fields (specified in IEC 61850-8-1 Annex A.3) are written to 
 | time_allowed_to_live | int | Time allowed for the GOOSE packet to live within the network | IEC 61850-8-1 Chapter 18.1.2.5.1 |
 | dataset | string | Data set transmitted within this packet | IEC 61850-8-1 Chapter 18.1.2.1 |
 | go_id | string | Optional GOOSE identifier | IEC 61850-7-2 Chapter 18.2.3.1 |
-| timestamp | time | GOOSE internal `T` timestamp | IEC 61850-7-2 Chapter 18.2.3.1 |
+| timestamp | time | GOOSE internal `T` timestamp, derived from seconds and fractionOfSecond | IEC 61850-7-2 Chapter 18.2.3.1 |
+| timestamp_quality | string | Final timeQuality byte from the GOOSE internal `T` value, emitted as `0x`-prefixed hexadecimal | IEC 61850-7-2 Chapter 18.2.3.1 |
 | st_num | int | GOOSE state number | IEC 61850-7-2 Chapter 18.2.3.1 |
 | sq_num | int | GOOSE sequence number | IEC 61850-7-2 Chapter 18.2.3.1 |
 | simulation | bool | Indicates whether the packet is from simulation | IEC 61850-7-2 Chapter 18.2.3.1 |

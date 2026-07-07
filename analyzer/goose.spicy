@@ -57,9 +57,9 @@ public type Message = unit {
 	var value: string;
 	var first_part: bytes;
 	var second_part: bytes;
-	var SecondSinceEpoch: time;
+	var SecondSinceEpoch: uint64;
 	var FractionOfSecond: uint64;
-	var TimeQuality: bytes;
+	var TimeQuality: uint64;
 
 	on goosePDUdata {
 		for ( element in self.goosePDUdata ) {
@@ -74,9 +74,9 @@ public type Message = unit {
 					self.T = element.application_data;
 					# UtcTime ::= OCTET STRING(8) representing the elapsed number of whose seconds since GMT
 					# midnight January 1, 1970, see CCIR Recommendation 460-4 (1986).
-					self.SecondSinceEpoch = self.T.sub(0, 4).to_time(spicy::ByteOrder::Big);
+					self.SecondSinceEpoch = self.T.sub(0, 4).to_uint(spicy::ByteOrder::Big);
 					self.FractionOfSecond = self.T.sub(4, 7).to_uint(spicy::ByteOrder::Big);
-					self.TimeQuality = self.T.sub(7, 8);
+					self.TimeQuality = self.T.sub(7, 8).to_uint(spicy::ByteOrder::Big);
 				}
 				case 5: {self.stNum = element.application_data.to_uint(spicy::ByteOrder::Big); }
 				case 6: {self.sqNum = element.application_data.to_uint(spicy::ByteOrder::Big); }

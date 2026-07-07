@@ -32,6 +32,7 @@ export {
         dataset: string                 &log;
         go_id: string                   &log &optional;
         timestamp: time                 &log;
+        timestamp_quality: string       &log;
         st_num: int                     &log;
         sq_num: int                     &log;
         simulation: bool                &log;
@@ -63,11 +64,12 @@ event zeek_init() &priority=20
 }
 
 # event defined in goose.evt.
-event goose::goose_packet(pkt: raw_pkt_hdr, appid: int, length: int, gocbRef: string, timeAllowedtoLive:int, dataSet: string, goID: string, t: time, stNum: int, sqNum: int, simulation: bool, confRev: int, ndsCom: bool, numDatSetEntries: int)
+event goose::goose_packet(pkt: raw_pkt_hdr, appid: int, length: int, gocbRef: string, timeAllowedtoLive:int, dataSet: string, goID: string, secondSinceEpoch: count, fractionOfSecond: count, timeQuality: count, stNum: int, sqNum: int, simulation: bool, confRev: int, ndsCom: bool, numDatSetEntries: int)
 {
 #    print "Detected a goose packet.";
 
-    local rec: goose::Info = [$ts=network_time(), $eth_type="0x88b8", $appid=fmt("0x%x", appid), $length=length, $gocb_ref=gocbRef, $time_allowed_to_live=timeAllowedtoLive, $dataset=dataSet, $timestamp=t, $st_num=stNum, $sq_num=sqNum, $simulation=simulation, $conf_rev=confRev, $nds_com=ndsCom, $num_dat_set_entries=numDatSetEntries];
+    local goose_timestamp = double_to_time(count_to_double(secondSinceEpoch) + count_to_double(fractionOfSecond) / 16777216.0);
+    local rec: goose::Info = [$ts=network_time(), $eth_type="0x88b8", $appid=fmt("0x%x", appid), $length=length, $gocb_ref=gocbRef, $time_allowed_to_live=timeAllowedtoLive, $dataset=dataSet, $timestamp=goose_timestamp, $timestamp_quality=fmt("0x%x", timeQuality), $st_num=stNum, $sq_num=sqNum, $simulation=simulation, $conf_rev=confRev, $nds_com=ndsCom, $num_dat_set_entries=numDatSetEntries];
 
     if ( goID != "" ) rec$go_id = goID;
 
