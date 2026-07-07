@@ -39,7 +39,7 @@ public type Message = unit {
 	var gocbRef: string;
 	var timeAllowedtoLive: uint64;
 	var datSet: string;
-	var goID: string &optional;
+	var goID: string;
 	var T: bytes;
 	var stNum: uint64;
 	var sqNum: uint64;
@@ -103,6 +103,7 @@ public type Message = unit {
 	}
 
 	on %init() {
+		self.goID = "";
 		self.simulation = False;
 		self.ndsCom = False;
 	}

@@ -21,22 +21,23 @@ export {
 
     # Define the record type that will contain the data to log.
     type Info: record {
-        ts: time                &log;
-        src: string             &log &optional;
-        dst: string             &log &optional;
-        vlan: count             &log &optional;
-        appid: int              &log;
-        length: int             &log;
-        gocbRef: string         &log;
-        timeAllowedtoLive: int  &log;
-        dataSet: string         &log;
-        t: time                 &log;
-        stNum: int              &log;
-        sqNum: int              &log;
-        simulation: bool        &log;
-        confRev: int            &log;
-        ndsCom: bool            &log;
-        numDatSetEntries: int   &log;
+        ts: time                        &log;
+        src_mac: string                 &log &optional;
+        dst_mac: string                 &log &optional;
+        eth_type: string                &log;
+        appid: string                   &log;
+        length: int                     &log;
+        gocb_ref: string                &log;
+        time_allowed_to_live: int       &log;
+        dataset: string                 &log;
+        go_id: string                   &log &optional;
+        timestamp: time                 &log;
+        st_num: int                     &log;
+        sq_num: int                     &log;
+        simulation: bool                &log;
+        conf_rev: int                   &log;
+        nds_com: bool                   &log;
+        num_dat_set_entries: int        &log;
     };
 }
 
@@ -62,16 +63,17 @@ event zeek_init() &priority=20
 }
 
 # event defined in goose.evt.
-event goose::goose_packet(pkt: raw_pkt_hdr, appid: int, length: int, gocbRef: string, timeAllowedtoLive:int, dataSet: string, t: time, stNum: int, sqNum: int, simulation: bool, confRev: int, ndsCom: bool, numDatSetEntries: int)
+event goose::goose_packet(pkt: raw_pkt_hdr, appid: int, length: int, gocbRef: string, timeAllowedtoLive:int, dataSet: string, goID: string, t: time, stNum: int, sqNum: int, simulation: bool, confRev: int, ndsCom: bool, numDatSetEntries: int)
 {
 #    print "Detected a goose packet.";
 
-    local rec: goose::Info = [$ts=network_time(), $appid=appid, $length=length, $gocbRef=gocbRef, $timeAllowedtoLive=timeAllowedtoLive, $dataSet=dataSet, $t=t, $stNum=stNum, $sqNum=sqNum, $simulation=simulation, $confRev=confRev, $ndsCom=ndsCom, $numDatSetEntries=numDatSetEntries];
+    local rec: goose::Info = [$ts=network_time(), $eth_type="0x88b8", $appid=fmt("0x%x", appid), $length=length, $gocb_ref=gocbRef, $time_allowed_to_live=timeAllowedtoLive, $dataset=dataSet, $timestamp=t, $st_num=stNum, $sq_num=sqNum, $simulation=simulation, $conf_rev=confRev, $nds_com=ndsCom, $num_dat_set_entries=numDatSetEntries];
+
+    if ( goID != "" ) rec$go_id = goID;
 
     if ( pkt?$l2 ) {
-        if ( pkt$l2?$src )  rec$src  = pkt$l2$src;
-        if ( pkt$l2?$dst )  rec$dst  = pkt$l2$dst;
-        if ( pkt$l2?$vlan ) rec$vlan = pkt$l2$vlan;
+        if ( pkt$l2?$src ) rec$src_mac = pkt$l2$src;
+        if ( pkt$l2?$dst ) rec$dst_mac = pkt$l2$dst;
     }
 
     Log::write(goose::LOG, rec);
