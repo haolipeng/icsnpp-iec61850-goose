@@ -10,6 +10,7 @@ export {
     const PARSE_ERROR_MISSING_ALL_DATA = "missing_all_data";
     const PARSE_ERROR_TRUNCATED_PACKET = "truncated_packet";
     const PARSE_ERROR_MALFORMED_ASN1 = "malformed_asn1";
+    const PARSE_ERROR_UNSUPPORTED_TLV = "unsupported_tlv";
 
     type ParseQuality: record {
         status: string;

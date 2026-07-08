@@ -48,6 +48,25 @@ def remove_goose_field(packet, tag):
     return bytes(packet)
 
 
+def add_goose_field(packet, field_tlv, after_tag):
+    packet = bytearray(packet)
+    goose_payload = 14
+    goose_length = goose_payload + 2
+    pdu_start = goose_payload + 8
+    pdu_length = pdu_start + 2
+
+    field_offset = packet.find(bytes([after_tag]), pdu_start)
+    if field_offset < 0:
+        raise RuntimeError(f"tag 0x{after_tag:02x} not found")
+
+    insert_offset = field_offset + tlv_size(packet, field_offset)
+    packet[insert_offset:insert_offset] = field_tlv
+
+    packet[goose_length:goose_length + 2] = (int.from_bytes(packet[goose_length:goose_length + 2], "big") + len(field_tlv)).to_bytes(2, "big")
+    packet[pdu_length] += len(field_tlv)
+    return bytes(packet)
+
+
 def truncate_packet(packet, bytes_to_remove):
     return packet[:-bytes_to_remove]
 
@@ -74,6 +93,12 @@ def main():
     fixtures = {
         "GOOSE_missing_all_data.pcap": remove_goose_field(packet, 0xAB),
         "GOOSE_missing_gocb_ref.pcap": remove_goose_field(packet, 0x80),
+        "GOOSE_missing_dataset.pcap": remove_goose_field(packet, 0x82),
+        "GOOSE_missing_go_id.pcap": remove_goose_field(packet, 0x83),
+        "GOOSE_missing_timestamp.pcap": remove_goose_field(packet, 0x84),
+        "GOOSE_missing_conf_rev.pcap": remove_goose_field(packet, 0x88),
+        "GOOSE_missing_num_dat_set_entries.pcap": remove_goose_field(packet, 0x8a),
+        "GOOSE_unsupported_tlv.pcap": add_goose_field(packet, b"\x8c\x01\x00", 0x8a),
         "GOOSE_truncated.pcap": truncate_packet(packet, 12),
         "GOOSE_malformed_asn1.pcap": make_malformed_asn1(packet),
     }
