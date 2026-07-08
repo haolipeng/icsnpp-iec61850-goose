@@ -5,44 +5,6 @@ import spicy;
 import zeek;
 import ASN1;
 
-	# Render one protocol byte without passing through character encoding.
-function byte(value: uint64): bytes {
-	return pack(cast<uint8>(value), spicy::ByteOrder::Big);
-}
-
-	# BER identifier octet for low-tag-number form:
-	# bits 8-7 are class, bit 6 is constructed, bits 5-1 are the tag number.
-function asn1_tag(class_id: uint64, constructed: bool, tag_number: uint64): bytes {
-	local constructed_bit = 0;
-	if ( constructed )
-		constructed_bit = 0x20;
-
-	return byte((class_id << 6) | constructed_bit | tag_number);
-}
-
-	# GOOSE PDU fields are context-specific. allData is tag [11] and is
-	# constructed because it is defined as SEQUENCE OF Data.
-function context_specific_constructed_tag(tag_number: uint64): bytes {
-	return asn1_tag(2, True, tag_number);
-}
-
-	# Rebuild the BER definite-length octets for the captured value bytes.
-function ber_length(length: uint64): bytes {
-	if ( length < 128 )
-		return byte(length);
-
-	if ( length <= 0xff )
-		return byte(0x81) + byte(length);
-
-	if ( length <= 0xffff )
-		return byte(0x82) + byte(length >> 8) + byte(length & 0xff);
-
-	if ( length <= 0xffffff )
-		return byte(0x83) + byte(length >> 16) + byte((length >> 8) & 0xff) + byte(length & 0xff);
-
-	return byte(0x84) + byte(length >> 24) + byte((length >> 16) & 0xff) + byte((length >> 8) & 0xff) + byte(length & 0xff);
-}
-
 public type Message = unit {
 
 	appid: uint16;
@@ -87,16 +49,18 @@ public type Message = unit {
 	var numDatSetEntries: uint64;
 	var allDataTlv: bytes;
 	var allDataRawHex: string;
+	var seenGocbRef: bool;
+	var seenDataSet: bool;
+	var seenTimestamp: bool;
+	var seenStNum: bool;
+	var seenSqNum: bool;
+	var seenConfRev: bool;
+	var seenNumDatSetEntries: bool;
+	var seenAllData: bool;
+	var parserWarning: string;
 
 	goosePDUdata: ASN1::ASN1Message(True)[] &parse-from=self.goosePDU.front().application_data;
 
-	allData: ASN1::ASN1Message(True)[] &parse-from=self.goosePDUdata.back().application_data;
-
-	var timestamp: bytes;
-	var encoding: spicy::Charset;
-	var value: string;
-	var first_part: bytes;
-	var second_part: bytes;
 	var SecondSinceEpoch: uint64;
 	var FractionOfSecond: uint64;
 	var TimeQuality: uint64;
@@ -106,30 +70,55 @@ public type Message = unit {
 			local tag = element.application_id;
 
 			switch (tag) {
-				case 0: {self.gocbRef = element.application_data.decode(); }
+				case 0: {
+					self.seenGocbRef = True;
+					self.gocbRef = element.application_data.decode();
+					}
 				case 1: {self.timeAllowedtoLive =  element.application_data.to_uint(spicy::ByteOrder::Big); }
-				case 2: {self.datSet =  element.application_data.decode(); }
+				case 2: {
+					self.seenDataSet = True;
+					self.datSet =  element.application_data.decode();
+					}
 				case 3: {self.goID  =  element.application_data.decode(); }
 				case 4: {
+					self.seenTimestamp = True;
 					self.T = element.application_data;
-					# UtcTime ::= OCTET STRING(8) representing the elapsed number of whose seconds since GMT
-					# midnight January 1, 1970, see CCIR Recommendation 460-4 (1986).
+					# UtcTime ::= OCTET STRING(8)，表示自 1970-01-01 00:00:00 GMT 起
+					# 至当前时刻的秒数，见 CCIR Recommendation 460-4 (1986)。
 					self.SecondSinceEpoch = self.T.sub(0, 4).to_uint(spicy::ByteOrder::Big);
 					self.FractionOfSecond = self.T.sub(4, 7).to_uint(spicy::ByteOrder::Big);
 					self.TimeQuality = self.T.sub(7, 8).to_uint(spicy::ByteOrder::Big);
 				}
-				case 5: {self.stNum = element.application_data.to_uint(spicy::ByteOrder::Big); }
-				case 6: {self.sqNum = element.application_data.to_uint(spicy::ByteOrder::Big); }
+				case 5: {
+					self.seenStNum = True;
+					self.stNum = element.application_data.to_uint(spicy::ByteOrder::Big);
+					}
+				case 6: {
+					self.seenSqNum = True;
+					self.sqNum = element.application_data.to_uint(spicy::ByteOrder::Big);
+					}
 				case 7: {self.simulation = element.application_data.to_uint(spicy::ByteOrder::Big) != 0; }
-				case 8: {self.confRev = element.application_data.to_uint(spicy::ByteOrder::Big); }
+				case 8: {
+					self.seenConfRev = True;
+					self.confRev = element.application_data.to_uint(spicy::ByteOrder::Big);
+					}
 				case 9: {self.ndsCom = element.application_data.to_uint(spicy::ByteOrder::Big) != 0; }
-				case 10: {self.numDatSetEntries = element.application_data.to_uint(spicy::ByteOrder::Big); }
+				case 10: {
+					self.seenNumDatSetEntries = True;
+					self.numDatSetEntries = element.application_data.to_uint(spicy::ByteOrder::Big);
+					}
 				case 11: {
-					# The AllData digest covers the complete TLV: tag, length, and value.
-					self.allDataTlv = context_specific_constructed_tag(cast<uint64>(tag)) + ber_length(|element.application_data|) + element.application_data;
+					# AllData 摘要覆盖完整 TLV：tag、length、value。
+					self.seenAllData = True;
+					self.allDataTlv = element.raw_tlv_prefix + element.application_data;
+					# allDataTlv 为二进制 bytes，无法直接写入 Zeek 日志字符串字段；
+					# 转为十六进制便于经 .evt 传给 Zeek，供 all_data_hash 计算，
+					# 并在开启 log_all_data_raw_hex 时写入 all_data_raw_hex 列。
 					self.allDataRawHex = spicy::bytes_to_hexstring(self.allDataTlv);
 					}
-				default: {print "error in tlv decoding, tag not implemented:"; print tag;}
+				default: {
+					self.parserWarning = "unsupported_tlv";
+					}
 			}
 		}
 	}
@@ -138,15 +127,29 @@ public type Message = unit {
 		# print self;
 	}
 
-	on %error(msg: string) {
-		print msg;
-	}
-
 	on %init() {
+		self.gocbRef = "";
+		self.datSet = "";
 		self.goID = "";
+		self.SecondSinceEpoch = 0;
+		self.FractionOfSecond = 0;
+		self.TimeQuality = 0;
+		self.stNum = 0;
+		self.sqNum = 0;
+		self.confRev = 0;
+		self.numDatSetEntries = 0;
 		self.simulation = False;
 		self.ndsCom = False;
 		self.allDataTlv = b"";
 		self.allDataRawHex = "";
+		self.seenGocbRef = False;
+		self.seenDataSet = False;
+		self.seenTimestamp = False;
+		self.seenStNum = False;
+		self.seenSqNum = False;
+		self.seenConfRev = False;
+		self.seenNumDatSetEntries = False;
+		self.seenAllData = False;
+		self.parserWarning = "none";
 	}
 };

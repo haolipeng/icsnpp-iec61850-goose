@@ -3,4 +3,5 @@ import goose;
 packet analyzer spicy::goose:
     parse with goose::Message;
 
-on goose::Message -> event goose::goose_packet($packet, self.appid, self.length, self.gocbRef, self.timeAllowedtoLive, self.datSet, self.goID, self.SecondSinceEpoch, self.FractionOfSecond, self.TimeQuality, self.stNum, self.sqNum, self.simulation, self.confRev, self.ndsCom, self.numDatSetEntries, self.allDataRawHex);
+on goose::Message -> event goose::goose_packet($packet, self.appid, self.length, self.gocbRef, self.timeAllowedtoLive, self.datSet, self.goID, self.SecondSinceEpoch, self.FractionOfSecond, self.TimeQuality, self.stNum, self.sqNum, self.simulation, self.confRev, self.ndsCom, self.numDatSetEntries, self.allDataRawHex, self.seenGocbRef, self.seenDataSet, self.seenTimestamp, self.seenStNum, self.seenSqNum, self.seenConfRev, self.seenNumDatSetEntries, self.seenAllData, self.parserWarning);
+on goose::Message::%error(msg: string) -> event goose::goose_packet_error($packet, self.appid, self.length, msg);
